@@ -24,7 +24,8 @@ export default function balancer(backends: FetchFn[]) {
       statuses: Array<number>(10),
       lastError: 0,
       healthScore: 1,
-      errorCount: 0
+      errorCount: 0,
+      respTime: 0,
     }
   })
 
@@ -44,7 +45,9 @@ export default function balancer(backends: FetchFn[]) {
         backend = backendA
       } else {
         // randomize between 2 good candidates
-        backend = (Math.floor(Math.random() * 2) == 0) ? backendA : backendB
+        // backend = (Math.floor(Math.random() * 2) == 0) ? backendA : backendB
+        // of the 2 good candidates, select the backend with the lower respTime
+        backend = (Math.min(backendA.respTime, backendB.respTime))
       }
 
       const promise = backend.proxy(req, init)
@@ -57,6 +60,8 @@ export default function balancer(backends: FetchFn[]) {
       attempted.add(backend)
 
       let resp: Response
+      // calculate the response time by subtracting the time the first bytes of response began from when the request started
+      let respTime = req.requestStart - resp.responseStart
       try {
         resp = await promise
       } catch (e) {
@@ -102,7 +107,8 @@ export interface Backend {
   statuses: number[],
   lastError: number,
   healthScore: number,
-  errorCount: 0
+  errorCount: 0,
+  respTime: 0,
 }
 // compute a backend health score with time + status codes
 function score(backend: Backend, errorBasis?: number) {
